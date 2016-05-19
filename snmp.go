@@ -658,10 +658,10 @@ func (w WapSNMP) GetTable(oid Oid) (map[string]interface{}, error) {
 }
 
 // ParseTrap parses a received SNMP trap and returns  a map of oid to objects
-func (w WapSNMP) ParseTrap(response []byte) error {
+func (w WapSNMP) ParseTrap(response []byte) ([]interface{}, error) {
 	decodedResponse, err := DecodeSequence(response)
 	if err != nil {
-		return  err
+		return  nil, err
 	}
 	var community string;
 
@@ -684,7 +684,7 @@ func (w WapSNMP) ParseTrap(response []byte) error {
 		v3HeaderDecoded, err := DecodeSequence([]byte(v3HeaderStr))
 		if err != nil {
 			fmt.Printf("Error 2 decoding:%v\n",err);
-			return err;
+			return nil, err;
 		}
 
 		w.engineID=v3HeaderDecoded[1].(string)
@@ -696,10 +696,10 @@ func (w WapSNMP) ParseTrap(response []byte) error {
 		fmt.Printf("username=%s\n",w.user);
 
 		if len(respAuthParam) == 0 || len(respPrivParam) == 0 {
-			return errors.New("response is not encrypted");
+			return nil, errors.New("response is not encrypted");
 		}
 		if len(w.Trapusers)==0 {
-			return errors.New("No SNMP V3 trap user configured");
+			return nil, errors.New("No SNMP V3 trap user configured");
 		}
 
 		founduser := false;
@@ -714,7 +714,7 @@ func (w WapSNMP) ParseTrap(response []byte) error {
 			}
 		}
 		if !founduser {
-			return errors.New("No matching user found");
+			return nil, errors.New("No matching user found");
 		}
 
 		//keys
@@ -728,7 +728,7 @@ func (w WapSNMP) ParseTrap(response []byte) error {
 		pduDecoded, err := DecodeSequence([]byte(plainResp))
 		if err != nil {
 			fmt.Printf("Error 3 decoding:%v\n",err);
-			return err;
+			return nil, err;
 		}
 		decodedResponse=pduDecoded;
 	}
@@ -752,7 +752,7 @@ func (w WapSNMP) ParseTrap(response []byte) error {
 	}
 	fmt.Printf("\n");
 
-	return nil
+	return varbinds, nil
 }
 
 // Close the net.conn in WapSNMP.
