@@ -25,7 +25,7 @@ You can run "go test" to perform unit test.
 Using the code
 ---------------------------------
 * The *_test.go files provide good examples of how to use these functions
-* Files under utils/ contain the main entry to the utility program. Then look at example.go and snmp.go to see how it works.
+* Files under examples/ contain the several examples, including an example trap server.
 
 Not supported yet:
 ------------------
