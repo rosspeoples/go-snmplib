@@ -11,17 +11,6 @@ This package includes a helper for running a SNMP trap receiver server. See trap
 Note that the server does not perform any Community verification. This can be done manually in the OnTrap
 function using the provided Trap object.
 
-Compile
---------------------------------
-make 
-
-This will compile the following binaries:
-* goget  : get single SNMP mib using SNMP v3
-* gowalk : walk SNMP mibs using SNMP v3
-* trapd  : this program is able to receive SNMP v2 and v3 traps (you need to configure users for SNMP v3 traps)
-
-You can run "go test" to perform unit test.
-
 Using the code
 ---------------------------------
 * The *_test.go files provide good examples of how to use these functions
