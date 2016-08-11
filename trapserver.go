@@ -14,10 +14,11 @@ type TrapHandler interface {
 
 // TrapServer object.
 type TrapServer struct {
-	IPAddress net.UDPAddr
-	Port      int
-	Conn      *net.UDPConn
-	Users     []V3user
+	PacketSize int
+	IPAddress  net.UDPAddr
+	Port       int
+	Conn       *net.UDPConn
+	Users      []V3user
 }
 
 // NewTrapServer creates a new TrapServer object.
@@ -31,7 +32,7 @@ func NewTrapServer(ip string, port int) (TrapServer, error) {
 	if err != nil {
 		return TrapServer{}, err
 	}
-	return TrapServer{IPAddress: addr, Port: port, Conn: conn}, nil
+	return TrapServer{PacketSize: 3000, IPAddress: addr, Port: port, Conn: conn}, nil
 }
 
 // ListenAndServe starts the listen loop and will pause execution until server is shut down.
@@ -41,7 +42,7 @@ func (s *TrapServer) ListenAndServe(handler TrapHandler) {
 
 	server.TrapUsers = s.Users
 
-	packet := make([]byte, 3000)
+	packet := make([]byte, s.PacketSize)
 	for {
 		_, addr, err := s.Conn.ReadFromUDP(packet)
 		if err != nil {
