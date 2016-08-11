@@ -1,4 +1,4 @@
-package wapsnmp
+package snmplib
 
 /* Encode decode OIDs.
 

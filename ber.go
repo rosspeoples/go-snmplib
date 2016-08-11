@@ -1,4 +1,4 @@
-package wapsnmp
+package snmplib
 
 /* This file implements BER ASN1 encoding and decoding.
 
@@ -21,11 +21,13 @@ parse BER.
 */
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 	"time"
 )
 
-// Constants for the Type of the TLV field.
+// BERType constants for the Type of the TLV field.
 type BERType uint8
 
 // Constants for the different types of the TLV fields.
@@ -70,14 +72,14 @@ const (
 	AsnGetNextRequest BERType = 0xa1
 	AsnGetResponse    BERType = 0xa2
 	AsnSetRequest     BERType = 0xa3
-	AsnTrap			  BERType = 0xa4
+	AsnTrap           BERType = 0xa4
 	AsnGetBulkRequest BERType = 0xa5
 	AsnInform         BERType = 0xa6
-	AsnTrap2		  BERType = 0xa7
-	AsnReport		  BERType = 0xa8
+	AsnTrap2          BERType = 0xa7
+	AsnReport         BERType = 0xa8
 )
 
-// Type to indicate which SNMP version is in use.
+// SNMPVersion indicates which SNMP version is in use.
 type SNMPVersion uint8
 
 // List the supported snmp versions.
@@ -114,11 +116,9 @@ func EncodeLength(length int) []byte {
 	return result
 }
 
-/* DecodeLength returns the length and the length of the length or an error.
-
-   Caveats: Does not support indefinite length. Couldn't find any
-   SNMP packet dump actually using that.
-*/
+// DecodeLength returns the length and the length of the length or an error.
+// Caveats: Does not support indefinite length. Couldn't find any
+// SNMP packet dump actually using that.
 func DecodeLength(toparse []byte) (int, int, error) {
 	// If the first bit is zero, the rest of the first byte indicates the length. Values up to 127 are encoded this way (unless you're using indefinite length, but we don't support that)
 
@@ -145,11 +145,12 @@ func DecodeLength(toparse []byte) (int, int, error) {
 	return val, 1 + numOctets, nil
 }
 
+// DecodeCounter64 decodes a counter64.
 func DecodeCounter64(toparse []byte) (uint64, error) {
 	if len(toparse) > 8 {
 		return 0, fmt.Errorf("don't support more than 64 bits")
 	}
-	var val uint64;
+	var val uint64
 	val = 0
 	for _, b := range toparse {
 		val = val*256 + uint64(b)
@@ -157,9 +158,7 @@ func DecodeCounter64(toparse []byte) (uint64, error) {
 	return val, nil
 }
 
-/* DecodeInteger decodes an integer.
-
-   Will error out if it's longer than 64 bits. */
+// DecodeInteger decodes an integer. Will error out if it's longer than 64 bits.
 func DecodeInteger(toparse []byte) (int, error) {
 	if len(toparse) > 8 {
 		return 0, fmt.Errorf("don't support more than 64 bits")
@@ -171,32 +170,32 @@ func DecodeInteger(toparse []byte) (int, error) {
 	return val, nil
 }
 
+// DecodeIPAddress decodes an IP address.
 func DecodeIPAddress(toparse []byte) (string, error) {
 	if len(toparse) != 4 {
 		return "", fmt.Errorf("need 4 bytes for IP address")
 	}
-	return fmt.Sprintf("%d.%d.%d.%d",toparse[0],toparse[1],toparse[2],toparse[3]),nil
+	return fmt.Sprintf("%d.%d.%d.%d", toparse[0], toparse[1], toparse[2], toparse[3]), nil
 }
-
 
 // EncodeInteger encodes an integer to BER format.
 func EncodeInteger(toEncode int) []byte {
-	if toEncode==0 {
-		return []byte{0};
+	if toEncode == 0 {
+		return []byte{0}
 	}
 	result := make([]byte, 8)
 	pos := 7
 	i := toEncode
-	for i > 0{
-		result[pos]=byte(i%256);
+	for i > 0 {
+		result[pos] = byte(i % 256)
 		i = i >> 8
-		pos--;
+		pos--
 	}
-	if (result[pos+1]>=0x80){
-		result[pos]=0x00;
-		pos--;
+	if result[pos+1] >= 0x80 {
+		result[pos] = 0x00
+		pos--
 	}
-	return result[pos+1:8];
+	return result[pos+1 : 8]
 }
 
 // DecodeSequence decodes BER binary data into into *[]interface{}.
@@ -214,7 +213,7 @@ func DecodeSequence(toparse []byte) ([]interface{}, error) {
 	}
 	seqLength, seqLenLen, err := DecodeLength(toparse[1:])
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sequence length", seqLenLen)
+		return nil, errors.New("failed to parse sequence length" + strconv.Itoa(seqLenLen))
 	}
 
 	if seqLength == 0 {
@@ -223,7 +222,7 @@ func DecodeSequence(toparse []byte) ([]interface{}, error) {
 
 	lidx := 0
 	idx := 1 + seqLenLen
-	toparse=toparse[:(1+seqLenLen+seqLength)]
+	toparse = toparse[:(1 + seqLenLen + seqLength)]
 	// Let's guarantee progress.
 	for idx < len(toparse) && idx > lidx {
 		berType := toparse[idx]
@@ -256,7 +255,7 @@ func DecodeSequence(toparse []byte) ([]interface{}, error) {
 				return nil, err
 			}
 			result = append(result, *oid)
-		case Gauge32,Counter32:
+		case Gauge32, Counter32:
 			val, err := DecodeInteger(berValue)
 			if err != nil {
 				return nil, err

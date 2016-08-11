@@ -1,4 +1,4 @@
-package wapsnmp
+package snmplib
 
 import (
 	"encoding/hex"
@@ -16,7 +16,7 @@ type expectAndRespond struct {
 /* A udpStub is a UDP stubbing tool.
 
    You test UDP programs by using
-   
+
    NewUdpStub().Expect("aabbcc").andReturn([]string("ddeeff")
 
    This will return a net.Conn that will simulate receiving a "ddeeff"
@@ -24,9 +24,9 @@ type expectAndRespond struct {
    readability).
 */
 type udpStub struct {
-	ignoreUnknownPackets        bool
-	expectResponses             []*expectAndRespond
-	queuedPackets               []string
+	ignoreUnknownPackets bool
+	expectResponses      []*expectAndRespond
+	queuedPackets        []string
 
 	t      *testing.T
 	closed bool

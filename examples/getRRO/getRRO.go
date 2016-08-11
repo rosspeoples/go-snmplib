@@ -4,8 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"google3/experimental/users/cde/wapSnmp/wapSnmp"
 	"time"
+
+	"github.com/deejross/go-snmplib"
 )
 
 var target = flag.String("target", "", "The host to connect to")
@@ -13,10 +14,10 @@ var community = flag.String("community", "", "The community to use")
 var timeout = flag.Duration("timeout", 2*time.Second, "timeout for packets")
 var retries = flag.Int("retries", 5, "how many times to retry sending a packet before giving up")
 
-var oid_string = ".1.3.6.1.4.1.2636.3.2.5.1.30"
-var oid = wapSnmp.MustParseOid(oid_string)
+var oidString = ".1.3.6.1.4.1.2636.3.2.5.1.30"
+var oid = snmplib.MustParseOid(oidString)
 
-func decodeOidToLSPName(lspOid wapSnmp.Oid) (*string, error) {
+func decodeOidToLSPName(lspOid snmplib.Oid) (*string, error) {
 	if !lspOid.Within(oid) {
 		return nil, errors.New("Oid must be within RRO table")
 	}
@@ -30,27 +31,27 @@ func decodeOidToLSPName(lspOid wapSnmp.Oid) (*string, error) {
 	return &result, nil
 }
 
-func DoGetRROs() {
+func doGetRROs() {
 	flag.Parse()
 
-	fmt.Printf("target=%v\ncommunity=%v\noid=%v\n", *target, *community, oid_string)
-	version := wapSnmp.SNMPv2c
+	fmt.Printf("target=%v\ncommunity=%v\noid=%v\n", *target, *community, oidString)
+	version := snmplib.SNMPv2c
 
 	fmt.Printf("Contacting %v %v %v\n", *target, *community, version)
-	wsnmp, err := wapSnmp.NewWapSNMP(*target, *community, version, *timeout, *retries)
+	snmp, err := snmplib.NewSNMP(*target, *community, version, *timeout, *retries)
 	if err != nil {
 		fmt.Printf("Error creating wsnmp => %v\n", err)
 		return
 	}
-	defer wsnmp.Close()
+	defer snmp.Close()
 
-	table, err := wsnmp.GetTable(oid)
+	table, err := snmp.GetTable(oid)
 	if err != nil {
 		fmt.Printf("Error getting table => %v\n", err)
 		return
 	}
 	for k, v := range table {
-		decoded, err := decodeOidToLSPName(wapSnmp.MustParseOid(k))
+		decoded, err := decodeOidToLSPName(snmplib.MustParseOid(k))
 		if err != nil {
 			fmt.Printf("Faulty oid returned : %v", k)
 			return
@@ -60,5 +61,5 @@ func DoGetRROs() {
 }
 
 func main() {
-	DoGetRROs()
+	doGetRROs()
 }

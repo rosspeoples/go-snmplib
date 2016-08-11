@@ -1,4 +1,4 @@
-package wapsnmp
+package snmplib
 
 import (
 	"fmt"
