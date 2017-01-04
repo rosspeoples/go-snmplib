@@ -655,18 +655,19 @@ func (w SNMP) GetTable(oid Oid) (map[string]interface{}, error) {
 
 // Trap object.
 type Trap struct {
-	Version   int
-	OID       Oid
-	Other     interface{}
-	Community string
-	Username  string
-	Address   string
-	VarBinds  map[string]interface{}
+	Version     int
+	OID         Oid
+	Other       interface{}
+	Community   string
+	Username    string
+	Address     string
+	VarBinds    map[string]interface{}
+	VarBindOIDs []string
 }
 
 // ParseTrap parses a received SNMP trap and returns  a map of oid to objects
 func (w SNMP) ParseTrap(response []byte) (Trap, error) {
-	t := Trap{VarBinds: map[string]interface{}{}}
+	t := Trap{VarBinds: map[string]interface{}{}, VarBindOIDs: []string{}}
 
 	decodedResponse, err := DecodeSequence(response)
 	if err != nil {
@@ -755,7 +756,9 @@ func (w SNMP) ParseTrap(response []byte) (Trap, error) {
 	for i := 1; i < len(varbinds); i++ {
 		varoid := varbinds[i].([]interface{})[1]
 		result := varbinds[i].([]interface{})[2]
-		t.VarBinds[varoid.(Oid).String()] = result
+		oid := varoid.(Oid).String()
+		t.VarBinds[oid] = result
+		t.VarBindOIDs = append(t.VarBindOIDs, oid)
 	}
 
 	return t, nil
