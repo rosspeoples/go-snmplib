@@ -746,7 +746,7 @@ func (w SNMP) ParseTrap(response []byte) (Trap, error) {
 	if t.Version == 1 {
 		t.OID, _ = respPacket[1].(Oid)
 		t.Address, _ = respPacket[2].(string)
-		t.Other, _ = respPacket[4]
+		t.Other = respPacket[4]
 		//fmt.Printf("Generic Trap: %d\n", respPacket[3])
 		varbinds = respPacket[6].([]interface{})
 	} else {
