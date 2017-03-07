@@ -63,8 +63,8 @@ func ParseOid(oid string) (Oid, error) {
 
 // DecodeOid decodes a ASN.1 BER raw oid into an Oid instance.
 func DecodeOid(raw []byte) (*Oid, error) {
-	if len(raw) < 2 {
-		return nil, errors.New("oid is at least 2 bytes long")
+	if len(raw) < 1 {
+		return nil, errors.New("oid is at least 1 byte long")
 	}
 
 	result := make([]int, 2)
