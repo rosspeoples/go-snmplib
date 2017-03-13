@@ -656,6 +656,7 @@ func (w SNMP) GetTable(oid Oid) (map[string]interface{}, error) {
 // Trap object.
 type Trap struct {
 	Version     int
+	TrapType    int  // for V1 traps
 	OID         Oid
 	Other       interface{}
 	Community   string
@@ -746,6 +747,7 @@ func (w SNMP) ParseTrap(response []byte) (Trap, error) {
 	if t.Version == 1 {
 		t.OID, _ = respPacket[1].(Oid)
 		t.Address, _ = respPacket[2].(string)
+		t.TrapType, _ = respPacket[3].(int)
 		t.Other = respPacket[4]
 		//fmt.Printf("Generic Trap: %d\n", respPacket[3])
 		varbinds = respPacket[6].([]interface{})
