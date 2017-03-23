@@ -8,6 +8,7 @@ package snmplib
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -68,11 +69,11 @@ func DecodeOid(raw []byte) (*Oid, error) {
 	}
 
 	result := make([]int, 2)
-	result[0] = 1
-	result[1] = 3
 	val := 0
 	for idx, b := range raw {
 		if idx == 0 {
+			result[0] = int(math.Floor(float64(b) / 40))
+			result[1] = int(math.Mod(float64(b), 40))
 			continue
 		}
 		if b < 128 {
