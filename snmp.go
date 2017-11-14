@@ -674,6 +674,10 @@ func (w SNMP) ParseTrap(response []byte) (Trap, error) {
 	if err != nil {
 		return t, err
 	}
+	if len(decodedResponse) < 4 {
+		log.Printf("Error: Invalid Decoded Response Length, decodedResponse: %v", decodedResponse)
+		return t, errors.New("Invalid Decoded Response Length")
+	}
 
 	// Fetch the varbinds out of the packet.
 	t.Version = decodedResponse[1].(int)
@@ -745,6 +749,10 @@ func (w SNMP) ParseTrap(response []byte) (Trap, error) {
 	respPacket := decodedResponse[3].([]interface{})
 	var varbinds []interface{}
 	if t.Version == 1 {
+		if len(respPacket) < 7 {
+			log.Printf("Error: Invalid Response Packet Length\ndecodedResponse: %v\nrespPacket: %v", decodedResponse, respPacket)
+			return t, errors.New("Invalid Response Packet Length")
+		}
 		t.OID, _ = respPacket[1].(Oid)
 		t.Address, _ = respPacket[2].(string)
 		t.TrapType, _ = respPacket[3].(int)
@@ -752,6 +760,10 @@ func (w SNMP) ParseTrap(response []byte) (Trap, error) {
 		//fmt.Printf("Generic Trap: %d\n", respPacket[3])
 		varbinds = respPacket[6].([]interface{})
 	} else {
+		if len(respPacket) < 5 {
+			log.Printf("Error: Invalid Response Packet Length\ndecodedResponse: %v\nrespPacket: %v", decodedResponse, respPacket)
+			return t, errors.New("Invalid Response Packet Length")
+		}
 		varbinds = respPacket[4].([]interface{})
 	}
 
