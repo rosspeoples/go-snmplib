@@ -500,7 +500,7 @@ func (w *SNMP) doGetV3(oid Oid, request BERType) (*Oid, interface{}, error) {
 	finalPacket := strings.Replace(string(packet), strings.Repeat("\x00", 12), authParam, 1)
 
 	response := make([]byte, bufSize)
-	numRead, err := poll(w.conn, []byte(finalPacket), response, w.retries, 500*time.Millisecond)
+	numRead, err := poll(w.conn, []byte(finalPacket), response, w.retries, w.timeout)
 	if err != nil {
 		return nil, nil, err
 	}
