@@ -202,7 +202,7 @@ func (w SNMP) Get(oid Oid) (interface{}, error) {
 	}
 
 	response := make([]byte, bufSize, bufSize)
-	numRead, err := poll(w.conn, req, response, w.retries, 500*time.Millisecond)
+	numRead, err := poll(w.conn, req, response, w.retries, w.timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (w SNMP) GetMultiple(oids []Oid) (map[string]interface{}, error) {
 	}
 
 	response := make([]byte, bufSize, bufSize)
-	numRead, err := poll(w.conn, req, response, w.retries, 500*time.Millisecond)
+	numRead, err := poll(w.conn, req, response, w.retries, w.timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +280,7 @@ func (w *SNMP) Discover() error {
 	}
 
 	response := make([]byte, bufSize)
-	numRead, err := poll(w.conn, req, response, w.retries, 500*time.Millisecond)
+	numRead, err := poll(w.conn, req, response, w.retries, w.timeout)
 	if err != nil {
 		return err
 	}
@@ -566,7 +566,7 @@ func (w SNMP) GetNext(oid Oid) (*Oid, interface{}, error) {
 	}
 
 	response := make([]byte, bufSize)
-	numRead, err := poll(w.conn, req, response, w.retries, 500*time.Millisecond)
+	numRead, err := poll(w.conn, req, response, w.retries, w.timeout)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -601,7 +601,7 @@ func (w SNMP) GetBulk(oid Oid, maxRepetitions int) (map[string]interface{}, erro
 	}
 
 	response := make([]byte, bufSize, bufSize)
-	numRead, err := poll(w.conn, req, response, w.retries, 500*time.Millisecond)
+	numRead, err := poll(w.conn, req, response, w.retries, w.timeout)
 	if err != nil {
 		return nil, err
 	}
