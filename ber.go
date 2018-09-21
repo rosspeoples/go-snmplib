@@ -121,6 +121,9 @@ func EncodeLength(length int) []byte {
 // SNMP packet dump actually using that.
 func DecodeLength(toparse []byte) (int, int, error) {
 	// If the first bit is zero, the rest of the first byte indicates the length. Values up to 127 are encoded this way (unless you're using indefinite length, but we don't support that)
+	if len(toparse) == 0 {
+		return 0, 0, fmt.Errorf("no data")
+	}
 
 	if toparse[0] == 0x80 {
 		return 0, 0, fmt.Errorf("we don't support indefinite length encoding")
@@ -234,8 +237,20 @@ func DecodeSequence(toparse []byte) ([]interface{}, error) {
 		if err != nil {
 			return nil, fmt.Errorf("length parse error @ idx %v", idx)
 		}
-		berValue := toparse[idx+1+berLenLen : idx+1+berLenLen+berLength]
-		berAll := toparse[idx : idx+1+berLenLen+berLength]
+
+		start := idx + 1 + berLenLen
+		end := idx + 1 + berLenLen + berLength
+		if start > len(toparse) || end > len(toparse) {
+			return nil, fmt.Errorf("parse error")
+		}
+		berValue := toparse[start:end]
+
+		start = idx
+		end = idx + 1 + berLenLen + berLength
+		if start > len(toparse) || end > len(toparse) {
+			return nil, fmt.Errorf("parse error")
+		}
+		berAll := toparse[start:end]
 
 		switch BERType(berType) {
 		case AsnBoolean:
