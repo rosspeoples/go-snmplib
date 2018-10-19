@@ -62,6 +62,7 @@ const (
 	maxMsgSize int    = 65500
 	SnmpAES    string = "AES"
 	SnmpDES    string = "DES"
+	SnmpNOPRIV string = "NOPRIV"
 	SnmpSHA1   string = "SHA1"
 	SnmpMD5    string = "MD5"
 )
@@ -99,6 +100,9 @@ func passwordToKey(password string, engineID string, hashAlg string) string {
 // NewSNMP creates a new SNMP object. Opens a UDP connection to the device that will be used for the SNMP packets.
 func NewSNMP(target, community string, version SNMPVersion, timeout time.Duration, retries int) (*SNMP, error) {
 	targetPort := fmt.Sprintf("%s:161", target)
+	if strings.Contains(target, ":") {
+		targetPort = fmt.Sprintf("[%s]:161", target)
+	}
 	conn, err := net.DialTimeout("udp", targetPort, timeout)
 	if err != nil {
 		return nil, fmt.Errorf(`error connecting to ("udp", "%s") : %s`, targetPort, err)
@@ -118,11 +122,15 @@ func NewSNMPv3(target, user, authAlg, authPwd, privAlg, privPwd string, timeout 
 	if authAlg != SnmpMD5 && authAlg != SnmpSHA1 {
 		return nil, fmt.Errorf(`Invalid auth algorithm %s, needs SHA1 or MD5`, authAlg)
 	}
-	if privAlg != SnmpAES && privAlg != SnmpDES {
-		return nil, fmt.Errorf(`Invalid priv algorithm %s, needs AES or DES`, privAlg)
+	if privAlg != SnmpAES && privAlg != SnmpDES && privAlg != SnmpNOPRIV {
+		return nil, fmt.Errorf(`Invalid priv algorithm %s, needs AES, DES or NOPRIV`, privAlg)
 	}
 
 	targetPort := fmt.Sprintf("%s:161", target)
+	//	protocol := "udp"
+	if strings.Contains(target, ":") {
+		targetPort = fmt.Sprintf("[%s]:161", target)
+	}
 	conn, err := net.DialTimeout("udp", targetPort, timeout)
 	if err != nil {
 		return nil, fmt.Errorf(`error connecting to ("udp", "%s") : %s`, targetPort, err)
@@ -181,7 +189,7 @@ func poll(conn net.Conn, toSend []byte, respondBuffer []byte, retries int, timeo
 
 		numRead := 0
 		if numRead, err = conn.Read(respondBuffer); err != nil {
-			log.Printf("Couldn't read. Retrying. Retry %d/%d\n", i, retries)
+			log.Printf("Couldn't read. Retrying. Retry %d/%d timeout %d\n%v\n", i, retries, timeout, err)
 			continue
 		}
 
@@ -202,7 +210,7 @@ func (w SNMP) Get(oid Oid) (interface{}, error) {
 	}
 
 	response := make([]byte, bufSize, bufSize)
-	numRead, err := poll(w.conn, req, response, w.retries, w.timeout)
+	numRead, err := poll(w.conn, req, response, w.retries, 500*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +244,7 @@ func (w SNMP) GetMultiple(oids []Oid) (map[string]interface{}, error) {
 	}
 
 	response := make([]byte, bufSize, bufSize)
-	numRead, err := poll(w.conn, req, response, w.retries, w.timeout)
+	numRead, err := poll(w.conn, req, response, w.retries, 500*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
@@ -304,8 +312,13 @@ func (w *SNMP) Discover() error {
 	w.aesIV = rand.Int63()
 	w.desIV = rand.Uint32()
 	//keys
+	var privKey string
 	w.authKey = passwordToKey(w.authPwd, w.engineID, w.authAlg)
-	privKey := passwordToKey(w.privPwd, w.engineID, w.authAlg)
+	if w.privAlg == SnmpNOPRIV {
+		privKey = strings.Repeat("\x00", 16)
+	} else {
+		privKey = passwordToKey(w.privPwd, w.engineID, w.authAlg)
+	}
 	w.privKey = string(([]byte(privKey))[0:16])
 	return nil
 }
@@ -469,30 +482,47 @@ func (w *SNMP) GetV3(oid Oid) (interface{}, error) {
 func (w *SNMP) doGetV3(oid Oid, request BERType) (*Oid, interface{}, error) {
 	msgID := getRandomRequestID()
 	requestID := getRandomRequestID()
-	req, err := EncodeSequence(
-		[]interface{}{Sequence, w.engineID, "",
-			[]interface{}{request, requestID, 0, 0,
-				[]interface{}{Sequence,
-					[]interface{}{Sequence, oid, nil}}}})
-	if err != nil {
-		panic(err)
+	body := []interface{}{Sequence, w.engineID, "",
+		[]interface{}{request, requestID, 0, 0,
+			[]interface{}{Sequence,
+				[]interface{}{Sequence, oid, nil}}}}
+
+	var encrypted string
+	var privParam string
+
+	if w.privAlg != SnmpNOPRIV {
+		req, err := EncodeSequence(body)
+		if err != nil {
+			panic(err)
+		}
+		encrypted, privParam, _ = w.encrypt(string(req))
+	} else {
+		privParam = ""
 	}
-
-	encrypted, privParam, _ := w.encrypt(string(req))
-
 	v3Header, err := EncodeSequence([]interface{}{Sequence, w.engineID,
 		int(w.engineBoots), int(w.engineTime), w.user, strings.Repeat("\x00", 12), privParam})
 	if err != nil {
 		panic(err)
 	}
 
-	flags := string([]byte{7})
+	var flags string
+	var packet []byte
 	USM := 0x03
-	packet, err := EncodeSequence([]interface{}{
-		Sequence, int(w.Version),
-		[]interface{}{Sequence, msgID, maxMsgSize, flags, USM},
-		string(v3Header),
-		encrypted})
+	if w.privAlg == SnmpNOPRIV {
+		flags = string([]byte{5})
+		packet, err = EncodeSequence([]interface{}{
+			Sequence, int(w.Version),
+			[]interface{}{Sequence, msgID, maxMsgSize, flags, USM},
+			string(v3Header),
+			body})
+	} else {
+		flags = string([]byte{7})
+		packet, err = EncodeSequence([]interface{}{
+			Sequence, int(w.Version),
+			[]interface{}{Sequence, msgID, maxMsgSize, flags, USM},
+			string(v3Header),
+			encrypted})
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -500,21 +530,22 @@ func (w *SNMP) doGetV3(oid Oid, request BERType) (*Oid, interface{}, error) {
 	finalPacket := strings.Replace(string(packet), strings.Repeat("\x00", 12), authParam, 1)
 
 	response := make([]byte, bufSize)
-	numRead, err := poll(w.conn, []byte(finalPacket), response, w.retries, w.timeout)
+	numRead, err := poll(w.conn, []byte(finalPacket), response, w.retries, w.timeout) //500*time.Millisecond)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	decodedResponse, err := DecodeSequence(response[:numRead])
 	if err != nil {
-		fmt.Printf("Error decoding getNext:%v\n", err)
+		fmt.Printf("Error decoding getV3:%v\n", err)
 		return nil, nil, err
 	}
-	/*
-		for i, val := range decodedResponse{
-			fmt.Printf("Resp:%v:type=%v\n",i,reflect.TypeOf(val));
-		}
-	*/
+
+	/* for i, val := range decodedResponse {
+		fmt.Printf("Resp:%v:type=%v\n", i, reflect.TypeOf(val))
+		fmt.Printf("Resp:%v:value=%x\n", i, reflect.ValueOf(val))
+		fmt.Printf("Resp:%v:value=%s\n", i, reflect.ValueOf(val))
+	} */
 
 	v3HeaderStr := decodedResponse[3].(string)
 	v3HeaderDecoded, err := DecodeSequence([]byte(v3HeaderStr))
@@ -523,24 +554,37 @@ func (w *SNMP) doGetV3(oid Oid, request BERType) (*Oid, interface{}, error) {
 		return nil, nil, err
 	}
 
-	w.engineID = v3HeaderDecoded[1].(string)
-	w.engineBoots = int32(v3HeaderDecoded[2].(int))
-	w.engineTime = int32(v3HeaderDecoded[3].(int))
+	respengineID := v3HeaderDecoded[1].(string)
+	respengineBoots := int32(v3HeaderDecoded[2].(int))
+	respengineTime := int32(v3HeaderDecoded[3].(int))
+	// https://www.ietf.org/rfc/rfc2574.txt
+	if (respengineID != w.engineID) || (respengineBoots != w.engineBoots) || ((respengineTime - w.engineTime) > 150) || ((respengineTime - w.engineTime) < -150) {
+		engine_mismatch_error := errors.New(fmt.Sprintf("engine data mismatch: Response EngineID = '%x' EngineBoots = '%d' EngineTime = '%d'. Expected EngineID = '%x' EngineBoots = '%d' EngineTime = '%d'\n", respengineID, respengineBoots, respengineTime, w.engineID, w.engineBoots, w.engineTime))
+		return nil, nil, engine_mismatch_error
+	}
 	// skip checking authParam for now
 	respAuthParam := v3HeaderDecoded[5].(string)
 	respPrivParam := v3HeaderDecoded[6].(string)
 
+	var pduDecoded []interface{}
+
 	if len(respAuthParam) == 0 || len(respPrivParam) == 0 {
-		return nil, nil, fmt.Errorf("Error,response is not encrypted.")
-	}
-
-	encryptedResp := decodedResponse[4].(string)
-	plainResp, _ := w.decrypt(encryptedResp, respPrivParam)
-
-	pduDecoded, err := DecodeSequence([]byte(plainResp))
-	if err != nil {
-		fmt.Printf("Error 3 decoding:%v\n", err)
-		return nil, nil, err
+		//return nil, nil, fmt.Errorf("Error,response is not encrypted.")
+		pduDecoded = decodedResponse[4].([]interface{})
+		/* for i, val := range pduDecoded {
+			//fmt.Printf("Resp:%v:type=%v:value=%v\n", i, reflect.TypeOf(val), reflect.ValueOf(val))
+			fmt.Printf("pduDecoded:%v:type=%v\n", i, reflect.TypeOf(val))
+			fmt.Printf("pduDecoded:%v:value=%x\n", i, reflect.ValueOf(val))
+			fmt.Printf("pduDecoded:%v:value=%s\n", i, reflect.ValueOf(val))
+		} */
+	} else {
+		encryptedResp := decodedResponse[4].(string)
+		plainResp, _ := w.decrypt(encryptedResp, respPrivParam)
+		pduDecoded, err = DecodeSequence([]byte(plainResp))
+		if err != nil {
+			fmt.Printf("Error 3 decoding:%v\n", err)
+			return nil, nil, err
+		}
 	}
 
 	// Find the varbinds
@@ -550,6 +594,28 @@ func (w *SNMP) doGetV3(oid Oid, request BERType) (*Oid, interface{}, error) {
 
 	resultOid := result[1].(Oid)
 	resultVal := result[2]
+
+	if respPacket[0] != AsnGetResponse {
+		// The table comes from
+		//http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&n=SNMP-USER-BASED-SM-MIB&r=cisco&f=SNMP-USM-MIB-V1SMI.my&t=tree&v=v1&i=0
+		my_error := errors.New(fmt.Sprintf("This return an element of type %s, instead of a AsnGetResponse. The oid returned is %s with value %s", respPacket[0], resultOid, resultVal))
+
+		if respPacket[0] == AsnReport {
+			var my_errors = make(map[string]string)
+			my_errors[".1.3.6.1.6.3.15.1.1.1.0"] = "usmStatsUnsupportedSecLevels"
+			my_errors[".1.3.6.1.6.3.15.1.1.2.0"] = "usmStatsNotInTimeWindows"
+			my_errors[".1.3.6.1.6.3.15.1.1.3.0"] = "usmStatsUnknownUserNames"
+			my_errors[".1.3.6.1.6.3.15.1.1.4.0"] = "usmStatsUnknownEngineIDs"
+			my_errors[".1.3.6.1.6.3.15.1.1.5.0"] = "usmStatsWrongDigests"
+			my_errors[".1.3.6.1.6.3.15.1.1.6.0"] = "usmStatsDecryptionErrors"
+			my_error = errors.New(fmt.Sprintf("Got an AsnReport with oid %s and value %s instead of a AsnGetResponse. That oid means '%s'\n", resultOid, resultVal, my_errors[resultOid.String()]))
+		}
+		return nil, nil, my_error
+	}
+
+	if resultOid.String() != oid.String() {
+		return &resultOid, nil, errors.New(fmt.Sprintf("Asking for the oid %s, but returned in fact %s with value %s", oid, resultOid, resultVal))
+	}
 
 	return &resultOid, resultVal, nil
 }
@@ -601,7 +667,7 @@ func (w SNMP) GetBulk(oid Oid, maxRepetitions int) (map[string]interface{}, erro
 	}
 
 	response := make([]byte, bufSize, bufSize)
-	numRead, err := poll(w.conn, req, response, w.retries, w.timeout)
+	numRead, err := poll(w.conn, req, response, w.retries, 500*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
@@ -656,7 +722,7 @@ func (w SNMP) GetTable(oid Oid) (map[string]interface{}, error) {
 // Trap object.
 type Trap struct {
 	Version     int
-	TrapType    int  // for V1 traps
+	TrapType    int // for V1 traps
 	OID         Oid
 	Other       interface{}
 	Community   string
