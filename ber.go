@@ -77,6 +77,9 @@ const (
 	AsnInform         BERType = 0xa6
 	AsnTrap2          BERType = 0xa7
 	AsnReport         BERType = 0xa8
+
+	noSuchObject   BERType = 0x80
+	noSuchInstance BERType = 0x81
 )
 
 // SNMPVersion indicates which SNMP version is in use.
@@ -170,6 +173,24 @@ func DecodeInteger(toparse []byte) (int, error) {
 	return val, nil
 }
 
+// DecodeIntegerSigned decodes a signed integer. Will error out if it's longer than 64 bits.
+func DecodeIntegerSigned(toparse []byte) (int, error) {
+	if len(toparse) > 8 {
+		return 0, fmt.Errorf("don't support more than 64 bits")
+	}
+	val := 0
+	for _, b := range toparse {
+		val = val*256 + int(b)
+	}
+	// If highest order bit is 1, number is negative: decode as 2's complement.
+	if toparse[0]&0x80 != 0 {
+		nbits := len(toparse) * 8
+		twotonbits := uint(1) << uint(nbits)
+		val = val - int(twotonbits)
+	}
+	return val, nil
+}
+
 // DecodeIPAddress decodes an IP address.
 func DecodeIPAddress(toparse []byte) (string, error) {
 	if len(toparse) != 4 {
@@ -244,7 +265,7 @@ func DecodeSequence(toparse []byte) ([]interface{}, error) {
 			}
 			result = append(result, berValue[0] == 0)
 		case AsnInteger:
-			decodedValue, err := DecodeInteger(berValue)
+			decodedValue, err := DecodeIntegerSigned(berValue)
 			if err != nil {
 				return nil, err
 			}
@@ -296,6 +317,10 @@ func DecodeSequence(toparse []byte) ([]interface{}, error) {
 				return nil, err
 			}
 			result = append(result, pdu)
+		case noSuchObject:
+			return nil, fmt.Errorf("No Such Object")
+		case noSuchInstance:
+			return nil, fmt.Errorf("No Such Instance currently exists at this OID")
 		default:
 			return nil, fmt.Errorf("did not understand type %v", berType)
 		}
