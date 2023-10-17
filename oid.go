@@ -11,6 +11,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	    "encoding/binary"
+
 )
 
 // The SNMP object identifier type.
