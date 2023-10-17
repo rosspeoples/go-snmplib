@@ -11,11 +11,14 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
 )
 
 // The SNMP object identifier type.
 type Oid []int
 
+
+//test
 // String returns the string representation for this oid object.
 func (o Oid) String() string {
 	/* A zero-length Oid has to be valid as it's often used as the start of a
@@ -49,9 +52,11 @@ func ParseOid(oid string) (Oid, error) {
 		oid = oid[1:]
 	}
 	oidParts := strings.Split(oid, ".")
+	parsedVal, err := strconv.ParseInt(val)
 	res := make([]int, len(oidParts))
 	for idx, val := range oidParts {
 		parsedVal, err := strconv.Atoi(val)
+		//parsedVal, err := binary.BigEndian.Uint64(val)
 		if err != nil {
 			return nil, err
 		}

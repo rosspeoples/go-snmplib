@@ -28,7 +28,7 @@ import (
 )
 
 // BERType constants for the Type of the TLV field.
-type BERType uint8
+type BERType uint16
 
 // Constants for the different types of the TLV fields.
 const (
@@ -153,7 +153,7 @@ func DecodeLength(toparse []byte) (int, int, error) {
 
 // DecodeCounter64 decodes a counter64.
 func DecodeCounter64(toparse []byte) (uint64, error) {
-	if len(toparse) > 8 {
+	if len(toparse) > 16 {
 		return 0, fmt.Errorf("don't support more than 64 bits")
 	}
 	var val uint64
@@ -166,7 +166,7 @@ func DecodeCounter64(toparse []byte) (uint64, error) {
 
 // DecodeInteger decodes an integer. Will error out if it's longer than 64 bits.
 func DecodeInteger(toparse []byte) (int, error) {
-	if len(toparse) > 8 {
+	if len(toparse) > 16 {
 		return 0, fmt.Errorf("don't support more than 64 bits")
 	}
 	val := 0
@@ -178,7 +178,7 @@ func DecodeInteger(toparse []byte) (int, error) {
 
 // DecodeIntegerSigned decodes a signed integer. Will error out if it's longer than 64 bits.
 func DecodeIntegerSigned(toparse []byte) (int, error) {
-	if len(toparse) > 8 {
+	if len(toparse) > 16 {
 		return 0, fmt.Errorf("don't support more than 64 bits")
 	}
 	val := 0
@@ -207,6 +207,7 @@ func EncodeInteger(toEncode int) []byte {
 	if toEncode == 0 {
 		return []byte{0}
 	}
+	//bura
 	result := make([]byte, 8)
 	pos := 7
 	i := toEncode
