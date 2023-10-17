@@ -17,6 +17,8 @@ import (
 // The SNMP object identifier type.
 type Oid []int
 
+
+//test
 // String returns the string representation for this oid object.
 func (o Oid) String() string {
 	/* A zero-length Oid has to be valid as it's often used as the start of a
