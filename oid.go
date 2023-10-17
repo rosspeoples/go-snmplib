@@ -11,7 +11,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	    "encoding/binary"
 
 )
 
@@ -53,8 +52,8 @@ func ParseOid(oid string) (Oid, error) {
 	oidParts := strings.Split(oid, ".")
 	res := make([]int, len(oidParts))
 	for idx, val := range oidParts {
-		//parsedVal, err := strconv.Atoi(val)
-		parsedVal, err := binary.BigEndian.Uint64(val)
+		parsedVal, err := strconv.Atoi(val)
+		//parsedVal, err := binary.BigEndian.Uint64(val)
 		if err != nil {
 			return nil, err
 		}
